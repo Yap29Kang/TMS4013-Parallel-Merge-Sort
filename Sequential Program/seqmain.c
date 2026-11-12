@@ -7,8 +7,8 @@
 #include <time.h>
 #endif
 
-void quicksort(int array[], int start, int end);
-int partition(int array[], int start, int end);
+void mergeSort(int array[], int length);
+void merge(int leftArray[], int leftSize, int rightArray[], int rightSize, int array[]);
 
 // High-resolution clock: returns microseconds as a double
 double now_us(void) {
@@ -25,65 +25,101 @@ double now_us(void) {
 }
 
 int main () {
-    int array[10000];
+    int array[10];
     int arraySize = sizeof(array) / sizeof(array[0]);
 
-    // Fill the array with random numbers between 0 and 9999
+    // Fill the array with random numbers between 0 and arraySize - 1
     for (int i = 0; i < arraySize; i++) {
-        array[i] = rand() % 10000;
+        array[i] = rand() % arraySize;
     }
 
     // Before
     for (int i = 0; i < arraySize; i++) {
-        printf("This is item %d which is %d\n", i, array[i]);
-    }
+   		printf("%d ", array[i]);	
+	}
 
-    printf("===================================================\n");
+    printf("\n===================================================\n");
 
-	// Start timer
-    double start_time = now_us();                
+    // Start timer
+    double start_time = now_us();
 
-	// Sort
-    quicksort(array, 0, arraySize - 1);
+    // Sort
+    mergeSort(array, arraySize);
 
-	// End timer
+    // End timer
     double end_time = now_us();
 
     // After
-    for (int i = 0; i < arraySize; i++) {
-        printf("This is item %d which is %d\n", i, array[i]);
-    }
+   	for (int i = 0; i < arraySize; i++) {
+   		printf("%d ", array[i]);	
+	}
+	printf("\n");
 
     double seconds = (end_time - start_time) / 1000000.0;
-    printf("Program execution time: %.6f s\n", seconds);
+    printf("\nProgram execution time: %.6f s\n", seconds);
 
     return 0;
 }
 
-void quicksort (int array[], int start, int end) {
-    if (end <= start) return; // base case
+void mergeSort (int array[], int length) {
+    // base case: 0 or 1 elements are already sorted
+    if (length <= 1) {
+        return;
+    }
 
-    int pivot = partition(array, start, end);
-    quicksort(array, start, pivot - 1);
-    quicksort(array, pivot + 1, end);
+    int middle = length / 2;
+    int leftSize = middle;
+    int rightSize = length - middle;
+
+    int *leftArray = malloc(leftSize * sizeof(int));
+    int *rightArray = malloc(rightSize * sizeof(int));
+    if (leftArray == NULL || rightArray == NULL) {
+        fprintf(stderr, "Out of memory\n");
+        exit(1);
+    }
+
+    // Copy each half into its own array
+    for (int i = 0; i < leftSize; i++) {
+        leftArray[i] = array[i];
+    }
+    for (int j = 0; j < rightSize; j++) {
+        rightArray[j] = array[middle + j];
+    }
+
+    mergeSort(leftArray, leftSize);
+    mergeSort(rightArray, rightSize);
+    merge(leftArray, leftSize, rightArray, rightSize, array);
+
+    free(leftArray);
+    free(rightArray);
 }
 
-int partition (int array[], int start, int end) {
-    int pivot = array[end];
-    int i = start - 1;
+void merge (int leftArray[], int leftSize, int rightArray[], int rightSize, int array[]) {
+    int i = 0, l = 0, r = 0; // indices
 
-    for (int j = start; j <= end - 1; j++) {
-        if (array[j] < pivot) {
+    // Take the smaller front element from either half
+    while (l < leftSize && r < rightSize) {
+        if (leftArray[l] < rightArray[r]) {
+            array[i] = leftArray[l];
             i++;
-            int temp = array[i];
-            array[i] = array[j];
-            array[j] = temp;
+            l++;
+        } else {
+            array[i] = rightArray[r];
+            i++;
+            r++;
         }
     }
-    i++;
-    int temp = array[i];
-    array[i] = array[end];
-    array[end] = temp;
 
-    return i;
+    // Copy whatever is left over
+    while (l < leftSize) {
+        array[i] = leftArray[l];
+        i++;
+        l++;
+    }
+
+    while (r < rightSize) {
+        array[i] = rightArray[r];
+        i++;
+        r++;
+    }
 }
