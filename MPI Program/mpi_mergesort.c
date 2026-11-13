@@ -61,6 +61,7 @@ int main(int argc, char *argv[]) {
     int *array = NULL;
     int *reference = NULL;
 
+    int exitStatus = 0;
     if (rank == 0) {
         array = (int *)malloc((size_t)arraySize * sizeof(int));
         reference = (int *)malloc((size_t)arraySize * sizeof(int));
@@ -193,14 +194,16 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        double speedup = seq_time / total_time;
+        double speedup = (total_time > 0.0) ? seq_time / total_time : 0.0;
         double efficiency = (speedup / size) * 100.0;
 
-        /* Memory estimates: worker holds local + temp (2 * maxChunk), Rank 0 peaks at 2 * N during final merge */
+        /* Memory estimates: local sorting uses data + temp; Rank 0 also stores the reference and merge buffers */
         int minChunk = counts[size - 1];
         int maxChunk = counts[0];
-        double workerMemMB = (2.0 * maxChunk * sizeof(int)) / (1024.0 * 1024.0);
-        double rootPeakMB  = (2.0 * arraySize * sizeof(int)) / (1024.0 * 1024.0);
+
+        double localSortMemMiB = (2.0 * maxChunk * sizeof(int)) / (1024.0 * 1024.0);
+
+        double rootPeakMiB = (3.0 * arraySize * sizeof(int)) / (1024.0 * 1024.0);
 
         printf("\n================ MPI MERGE SORT RESULTS ================\n");
         printf("Processes (P)       : %d\n", size);
@@ -213,11 +216,15 @@ int main(int argc, char *argv[]) {
         printf("Sequential Time     : %.6f s\n", seq_time);
         printf("Speedup             : %.3fx\n", speedup);
         printf("Parallel Efficiency : %.2f%%\n", efficiency);
-        printf("Worker Mem (Est.)   : %.2f MB per rank\n", workerMemMB);
-        printf("Rank 0 Peak (Est.)  : %.2f MB (final merge)\n", rootPeakMB);
+        printf("Local Sort Mem (Est.): %.2f MiB per rank\n", localSortMemMiB);
+        printf("Rank 0 Peak (Est.)  : %.2f MiB (approx.)\n", rootPeakMiB);
         printf("Verification        : %s (N = %d, processes = %d)\n",
                pass ? "PASS" : "FAIL", arraySize, size);
         printf("========================================================\n");
+
+        if (!pass) {
+            exitStatus = 1;
+        }
 
         free(reference);
         free(local);
@@ -226,7 +233,7 @@ int main(int argc, char *argv[]) {
     free(counts);
     free(displs);
     MPI_Finalize();
-    return 0;
+    return exitStatus;
 }
 
 /* Single-allocation Merge Sort wrapper (avoids repeated malloc/free in recursion) */
