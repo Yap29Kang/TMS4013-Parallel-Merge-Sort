@@ -13,10 +13,31 @@ PROGRAM="${SOURCE%.c}"
 SLAVE1="tms4013_s1@192.168.50.2"
 SLAVE2="tms4013_s2@192.168.50.3"
 
+# Detect program type
+if grep -q '#include [<"]mpi.h[>"]' "$SOURCE"; then
+    if grep -q '#include [<"]omp.h[>"]' "$SOURCE"; then
+        echo "Detected: MPI + OpenMP program"
+        COMPILER="mpicc"
+        FLAGS="-fopenmp"
+    else
+        echo "Detected: MPI program"
+        COMPILER="mpicc"
+        FLAGS=""
+    fi
+elif grep -q '#include [<"]omp.h[>"]' "$SOURCE"; then
+    echo "Detected: OpenMP program"
+    COMPILER="gcc"
+    FLAGS="-fopenmp"
+else
+    echo "Detected: Standard C program"
+    COMPILER="gcc"
+    FLAGS=""
+fi
+
 # Compile
 echo "Compiling $SOURCE..."
 
-if ! mpicc -o "$PROGRAM" "$SOURCE"; then
+if ! $COMPILER $FLAGS -o "$PROGRAM" "$SOURCE"; then
     echo "Compilation failed!"
     exit 1
 fi
@@ -37,13 +58,11 @@ deploy_slave() {
 
     echo "Deploying to $NAME..."
 
-    # Copy executable to slave
     if ! scp "$PROGRAM" "$SLAVE:/tmp/$PROGRAM"; then
         echo "Copy to $NAME failed!"
         return 1
     fi
 
-    # Move executable using remote sudo
     if ! ssh -t "$SLAVE" \
         "sudo mkdir -p /opt/mpi && sudo mv /tmp/$PROGRAM /opt/mpi/$PROGRAM && sudo chmod +x /opt/mpi/$PROGRAM"; then
         echo "Installation on $NAME failed!"
