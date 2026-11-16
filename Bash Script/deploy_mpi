@@ -1,0 +1,64 @@
+
+#!/bin/bash
+
+# Check input
+if [ $# -ne 1 ]; then
+    echo "Usage: ./deploy_mpi <source_file.c>"
+    exit 1
+fi
+
+SOURCE=$1
+PROGRAM="${SOURCE%.c}"
+
+SLAVE1="tms4013_s1@192.168.50.2"
+SLAVE2="tms4013_s2@192.168.50.3"
+
+# Compile
+echo "Compiling $SOURCE..."
+
+if ! mpicc -o "$PROGRAM" "$SOURCE"; then
+    echo "Compilation failed!"
+    exit 1
+fi
+
+echo "Compilation successful!"
+
+# Deploy to master
+echo "Deploying to Master..."
+
+sudo mkdir -p /opt/mpi || exit 1
+sudo cp "$PROGRAM" "/opt/mpi/$PROGRAM" || exit 1
+sudo chmod +x "/opt/mpi/$PROGRAM" || exit 1
+
+# Function to deploy to a slave
+deploy_slave() {
+    SLAVE=$1
+    NAME=$2
+
+    echo "Deploying to $NAME..."
+
+    # Copy executable to slave
+    if ! scp "$PROGRAM" "$SLAVE:/tmp/$PROGRAM"; then
+        echo "Copy to $NAME failed!"
+        return 1
+    fi
+
+    # Move executable using remote sudo
+    if ! ssh -t "$SLAVE" \
+        "sudo mkdir -p /opt/mpi && sudo mv /tmp/$PROGRAM /opt/mpi/$PROGRAM && sudo chmod +x /opt/mpi/$PROGRAM"; then
+        echo "Installation on $NAME failed!"
+        return 1
+    fi
+
+    echo "$NAME deployment successful!"
+    return 0
+}
+
+# Deploy to both slaves
+deploy_slave "$SLAVE1" "Slave 1" || exit 1
+deploy_slave "$SLAVE2" "Slave 2" || exit 1
+
+echo "--------------------------------"
+echo "Deployment completed successfully!"
+echo "Executable: /opt/mpi/$PROGRAM"
+echo "--------------------------------"
